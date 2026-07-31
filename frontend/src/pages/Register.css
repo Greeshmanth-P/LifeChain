@@ -1,0 +1,209 @@
+.register-page {
+  min-height: calc(100vh - 74px);
+  padding:
+    clamp(35px, 7vw, 80px)
+    clamp(20px, 8vw, 110px);
+
+  display: grid;
+  grid-template-columns: 1fr 460px;
+  align-items: center;
+  gap: clamp(45px, 8vw, 110px);
+
+  background:
+    radial-gradient(
+      circle at 0% 10%,
+      rgba(37, 99, 235, 0.14),
+      transparent 30%
+    ),
+    #f7f9fc;
+}
+
+.register-information {
+  max-width: 700px;
+}
+
+.register-label {
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.register-information h1 {
+  margin: 16px 0;
+
+  color: #14213d;
+  font-size: clamp(38px, 6vw, 62px);
+  line-height: 1.08;
+}
+
+.register-information > p {
+  color: #667085;
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.registration-benefits {
+  margin-top: 30px;
+  display: grid;
+  gap: 14px;
+}
+
+.registration-benefits div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.registration-benefits span {
+  width: 28px;
+  height: 28px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 9px;
+  background: #dcfce7;
+  color: #15803d;
+  font-weight: 900;
+}
+
+.registration-benefits p {
+  margin: 0;
+  color: #475467;
+  font-weight: 700;
+}
+
+.register-card {
+  padding: 32px;
+
+  border: 1px solid #e4e7ec;
+  border-radius: 22px;
+  background: white;
+
+  box-shadow:
+    0 25px 60px rgba(20, 33, 61, 0.11);
+}
+
+.register-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 27px;
+}
+
+.register-card-logo {
+  width: 48px;
+  height: 48px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 14px;
+  background: #2563eb;
+  color: white;
+  font-weight: 900;
+}
+
+.register-card-heading h2 {
+  margin: 0;
+}
+
+.register-card-heading p {
+  margin: 5px 0 0;
+  color: #7a8493;
+}
+
+.register-card form {
+  display: flex;
+  flex-direction: column;
+}
+
+.register-card label {
+  margin: 15px 0 8px;
+  color: #344054;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.register-card input {
+  width: 100%;
+  padding: 14px;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  outline: none;
+}
+
+.register-card input:focus {
+  border-color: #2563eb;
+  box-shadow:
+    0 0 0 4px rgba(37, 99, 235, 0.09);
+}
+
+.register-card small {
+  margin-top: 7px;
+  color: #8a94a6;
+}
+
+.register-card button {
+  margin-top: 25px;
+  padding: 14px;
+
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: white;
+
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.register-card button:disabled {
+  background: #9db5e8;
+  cursor: not-allowed;
+}
+
+.register-login-link {
+  margin: 22px 0 0;
+  text-align: center;
+  color: #667085;
+  font-size: 14px;
+}
+
+.register-login-link a {
+  color: #2563eb;
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .register-page {
+    grid-template-columns: 1fr;
+  }
+
+  .register-information {
+    text-align: center;
+  }
+
+  .registration-benefits {
+    width: fit-content;
+    margin-right: auto;
+    margin-left: auto;
+    text-align: left;
+  }
+
+  .register-card {
+    width: min(460px, 100%);
+    margin: auto;
+  }
+}
+
+@media (max-width: 500px) {
+  .register-page {
+    padding: 30px 15px;
+  }
+
+  .register-card {
+    padding: 24px 18px;
+  }
+}
