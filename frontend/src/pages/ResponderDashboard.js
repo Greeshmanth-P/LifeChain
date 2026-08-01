@@ -858,6 +858,986 @@
 
 
 
+// import React, {
+//   useCallback,
+//   useEffect,
+//   useRef,
+//   useState
+// } from "react";
+
+// import { useNavigate } from "react-router-dom";
+
+// import api from "../api/api";
+// import "./ResponderDashboard.css";
+
+// const ResponderDashboard = () => {
+//   const navigate = useNavigate();
+
+//   const storedUser = localStorage.getItem("user");
+
+//   let user = null;
+
+//   try {
+//     user = storedUser
+//       ? JSON.parse(storedUser)
+//       : null;
+//   } catch (error) {
+//     console.error(
+//       "Invalid user data in localStorage:",
+//       error
+//     );
+//   }
+
+//   const [requests, setRequests] = useState([]);
+//   const [message, setMessage] = useState("");
+//   const [myLocation, setMyLocation] = useState(null);
+
+//   const [acceptingId, setAcceptingId] =
+//     useState(null);
+
+//   const [completingId, setCompletingId] =
+//     useState(null);
+
+//   const [loading, setLoading] = useState(true);
+//   const [refreshing, setRefreshing] =
+//     useState(false);
+
+//   const updatingDashboard = useRef(false);
+
+//   // ==========================================
+//   // CHECK IF REQUEST IS ASSIGNED TO USER
+//   // ==========================================
+
+//   const isAssignedToCurrentResponder =
+//     useCallback(
+//       request => {
+//         if (!user) {
+//           return false;
+//         }
+
+//         const responder = request?.responder;
+
+//         if (!responder) {
+//           return false;
+//         }
+
+//         // Responder returned as populated object
+//         if (typeof responder === "object") {
+//           if (
+//             responder.phone &&
+//             String(responder.phone) ===
+//               String(user.phone)
+//           ) {
+//             return true;
+//           }
+
+//           if (
+//             responder._id &&
+//             user.id &&
+//             String(responder._id) ===
+//               String(user.id)
+//           ) {
+//             return true;
+//           }
+
+//           if (
+//             responder._id &&
+//             user._id &&
+//             String(responder._id) ===
+//               String(user._id)
+//           ) {
+//             return true;
+//           }
+//         }
+
+//         // Responder returned as MongoDB ID
+//         if (typeof responder === "string") {
+//           const currentUserId =
+//             user.id || user._id;
+
+//           if (
+//             currentUserId &&
+//             String(responder) ===
+//               String(currentUserId)
+//           ) {
+//             return true;
+//           }
+//         }
+
+//         return false;
+//       },
+//       [
+//         user?.id,
+//         user?._id,
+//         user?.phone
+//       ]
+//     );
+
+//   // ==========================================
+//   // FILTER REQUESTS
+//   // ==========================================
+
+//   const filterRequestsForCurrentResponder =
+//     useCallback(
+//       allRequests => {
+//         if (!Array.isArray(allRequests)) {
+//           return [];
+//         }
+
+//         return allRequests.filter(request => {
+//           // Pending requests are visible to all
+//           if (request.status === "pending") {
+//             return true;
+//           }
+
+//           // Accepted requests are visible only
+//           // to their assigned responder
+//           if (
+//             request.status === "fulfilled" ||
+//             request.status ===
+//               "waiting_verification"
+//           ) {
+//             return isAssignedToCurrentResponder(
+//               request
+//             );
+//           }
+
+//           // Hide completed and other statuses
+//           return false;
+//         });
+//       },
+//       [isAssignedToCurrentResponder]
+//     );
+
+//   // ==========================================
+//   // DISTANCE CALCULATOR
+//   // ==========================================
+
+//   const calculateDistance = (
+//     lat1,
+//     lon1,
+//     lat2,
+//     lon2
+//   ) => {
+//     const earthRadius = 6371;
+
+//     const latitudeDifference =
+//       (lat2 - lat1) * (Math.PI / 180);
+
+//     const longitudeDifference =
+//       (lon2 - lon1) * (Math.PI / 180);
+
+//     const value =
+//       Math.sin(latitudeDifference / 2) ** 2 +
+//       Math.cos(lat1 * (Math.PI / 180)) *
+//         Math.cos(lat2 * (Math.PI / 180)) *
+//         Math.sin(longitudeDifference / 2) ** 2;
+
+//     const angle =
+//       2 *
+//       Math.atan2(
+//         Math.sqrt(value),
+//         Math.sqrt(1 - value)
+//       );
+
+//     return (earthRadius * angle).toFixed(2);
+//   };
+
+//   // ==========================================
+//   // FETCH NEARBY REQUESTS
+//   // ==========================================
+
+//   const fetchNearbyRequests = useCallback(
+//     async (latitude, longitude) => {
+//       const response = await api.post(
+//         "/help-requests/nearby",
+//         {
+//           phone: user.phone,
+//           latitude,
+//           longitude
+//         }
+//       );
+
+//       const receivedRequests =
+//         response.data?.requests || [];
+
+//       const filteredRequests =
+//         filterRequestsForCurrentResponder(
+//           receivedRequests
+//         );
+
+//       setRequests(filteredRequests);
+//     },
+//     [
+//       user?.phone,
+//       filterRequestsForCurrentResponder
+//     ]
+//   );
+
+//   // ==========================================
+//   // UPDATE LOCATION AND DASHBOARD
+//   // ==========================================
+
+//   const updateDashboard = useCallback(
+//     (manualRefresh = false) => {
+//       if (
+//         !user?.phone ||
+//         updatingDashboard.current
+//       ) {
+//         return;
+//       }
+
+//       if (!navigator.geolocation) {
+//         setMessage(
+//           "Geolocation is not supported by your browser."
+//         );
+
+//         setLoading(false);
+//         setRefreshing(false);
+//         return;
+//       }
+
+//       updatingDashboard.current = true;
+
+//       if (manualRefresh) {
+//         setRefreshing(true);
+//       }
+
+//       navigator.geolocation.getCurrentPosition(
+//         async position => {
+//           try {
+//             const latitude =
+//               position.coords.latitude;
+
+//             const longitude =
+//               position.coords.longitude;
+
+//             setMyLocation({
+//               lat: latitude,
+//               lon: longitude
+//             });
+
+//             await api.post(
+//               "/users/update-location",
+//               {
+//                 phone: user.phone,
+//                 latitude,
+//                 longitude
+//               }
+//             );
+
+//             await fetchNearbyRequests(
+//               latitude,
+//               longitude
+//             );
+
+//             setMessage("");
+//           } catch (error) {
+//             console.error(
+//               "Dashboard update error:",
+//               error.response?.data ||
+//                 error.message
+//             );
+
+//             setMessage(
+//               error.response?.data?.message ||
+//                 "Failed to load nearby requests."
+//             );
+//           } finally {
+//             updatingDashboard.current = false;
+//             setLoading(false);
+//             setRefreshing(false);
+//           }
+//         },
+
+//         locationError => {
+//           console.error(
+//             "Location access error:",
+//             locationError
+//           );
+
+//           if (
+//             locationError.code ===
+//             locationError.PERMISSION_DENIED
+//           ) {
+//             setMessage(
+//               "Location permission was denied. Allow location access to find nearby requests."
+//             );
+//           } else {
+//             setMessage(
+//               "Unable to detect your current location."
+//             );
+//           }
+
+//           updatingDashboard.current = false;
+//           setLoading(false);
+//           setRefreshing(false);
+//         },
+
+//         {
+//           enableHighAccuracy: true,
+//           timeout: 10000,
+//           maximumAge: 5000
+//         }
+//       );
+//     },
+//     [
+//       user?.phone,
+//       fetchNearbyRequests
+//     ]
+//   );
+
+//   // ==========================================
+//   // AUTO REFRESH
+//   // ==========================================
+
+//   useEffect(() => {
+//     if (!user?.phone) {
+//       setLoading(false);
+//       return;
+//     }
+
+//     updateDashboard();
+
+//     const intervalId = setInterval(
+//       updateDashboard,
+//       10000
+//     );
+
+//     return () => {
+//       clearInterval(intervalId);
+//     };
+//   }, [user?.phone, updateDashboard]);
+
+//   // ==========================================
+//   // ACCEPT REQUEST
+//   // ==========================================
+
+//   const acceptRequest = async requestId => {
+//     if (!user?.phone || acceptingId) {
+//       return;
+//     }
+
+//     const confirmed = window.confirm(
+//       "Accept this help request?\n\nOnly accept if you are ready to assist."
+//     );
+
+//     if (!confirmed) {
+//       return;
+//     }
+
+//     try {
+//       setAcceptingId(requestId);
+
+//       const response = await api.post(
+//         "/help-requests/accept",
+//         {
+//           requestId,
+//           responderPhone: user.phone
+//         }
+//       );
+
+//       // Immediately update UI after acceptance
+//       setRequests(previousRequests =>
+//         previousRequests.map(request =>
+//           request._id === requestId
+//             ? {
+//                 ...request,
+//                 status: "fulfilled",
+//                 responder: {
+//                   _id: user.id || user._id,
+//                   name: user.name,
+//                   phone: user.phone
+//                 }
+//               }
+//             : request
+//         )
+//       );
+
+//       alert(
+//         "Request accepted. Help the requester and mark it completed afterward."
+//       );
+
+//       // Exact requester location opens only
+//       // after successful acceptance
+//       const coordinates =
+//         response.data?.requesterLocation
+//           ?.coordinates;
+
+//       if (
+//         Array.isArray(coordinates) &&
+//         coordinates.length >= 2
+//       ) {
+//         const longitude = coordinates[0];
+//         const latitude = coordinates[1];
+
+//         window.open(
+//           `https://www.google.com/maps?q=${latitude},${longitude}`,
+//           "_blank",
+//           "noopener,noreferrer"
+//         );
+//       }
+//     } catch (error) {
+//       console.error(
+//         "Accept request error:",
+//         error.response?.data ||
+//           error.message
+//       );
+
+//       alert(
+//         error.response?.data?.message ||
+//           "Unable to accept this request."
+//       );
+
+//       // Refresh because another responder
+//       // may already have accepted it
+//       updateDashboard();
+//     } finally {
+//       setAcceptingId(null);
+//     }
+//   };
+
+//   // ==========================================
+//   // COMPLETE REQUEST
+//   // ==========================================
+
+//   const completeRequest = async requestId => {
+//     if (!user?.phone || completingId) {
+//       return;
+//     }
+
+//     const confirmed = window.confirm(
+//       "Mark this help request as completed?\n\nThe requester will need to verify it."
+//     );
+
+//     if (!confirmed) {
+//       return;
+//     }
+
+//     try {
+//       setCompletingId(requestId);
+
+//       await api.post(
+//         "/help-requests/complete",
+//         {
+//           requestId,
+//           responderPhone: user.phone
+//         }
+//       );
+
+//       setRequests(previousRequests =>
+//         previousRequests.map(request =>
+//           request._id === requestId
+//             ? {
+//                 ...request,
+//                 status:
+//                   "waiting_verification"
+//               }
+//             : request
+//         )
+//       );
+
+//       alert(
+//         "Help marked completed. Waiting for requester verification."
+//       );
+//     } catch (error) {
+//       console.error(
+//         "Complete request error:",
+//         error.response?.data ||
+//           error.message
+//       );
+
+//       alert(
+//         error.response?.data?.message ||
+//           "Failed to complete the request."
+//       );
+//     } finally {
+//       setCompletingId(null);
+//     }
+//   };
+
+//   // ==========================================
+//   // OPEN REQUESTER LOCATION
+//   // ==========================================
+
+//   const openGoogleMaps = request => {
+//     const coordinates =
+//       request?.location?.coordinates;
+
+//     if (
+//       !Array.isArray(coordinates) ||
+//       coordinates.length < 2
+//     ) {
+//       alert(
+//         "Requester location is unavailable."
+//       );
+
+//       return;
+//     }
+
+//     const longitude = coordinates[0];
+//     const latitude = coordinates[1];
+
+//     window.open(
+//       `https://www.google.com/maps?q=${latitude},${longitude}`,
+//       "_blank",
+//       "noopener,noreferrer"
+//     );
+//   };
+
+//   // ==========================================
+//   // FORMAT CREATED TIME
+//   // ==========================================
+
+//   const formatCreatedTime = value => {
+//     if (!value) {
+//       return "Time unavailable";
+//     }
+
+//     return new Date(value).toLocaleString();
+//   };
+
+//   // ==========================================
+//   // LOGIN CHECK
+//   // ==========================================
+
+//   if (!user) {
+//     return (
+//       <main className="responder-login-state">
+//         <div>
+//           <span>!</span>
+
+//           <h2>Please login again</h2>
+
+//           <p>
+//             Your account information is missing.
+//           </p>
+
+//           <button
+//             onClick={() =>
+//               navigate("/login")
+//             }
+//           >
+//             Go to Login
+//           </button>
+//         </div>
+//       </main>
+//     );
+//   }
+
+//   const pendingCount = requests.filter(
+//     request => request.status === "pending"
+//   ).length;
+
+//   const acceptedCount = requests.filter(
+//     request => request.status === "fulfilled"
+//   ).length;
+
+//   const verificationCount =
+//     requests.filter(
+//       request =>
+//         request.status ===
+//         "waiting_verification"
+//     ).length;
+
+//   return (
+//     <main className="responder-page">
+//       {/* HERO SECTION */}
+
+//       <section className="responder-hero">
+//         <div>
+//           <span className="responder-page-label">
+//             Responder Dashboard
+//           </span>
+
+//           <h1>
+//             Ready to help, {user.name}?
+//           </h1>
+
+//           <p>
+//             Discover active requests near your
+//             current location and support community
+//             members who need assistance.
+//           </p>
+//         </div>
+
+//         <div className="responder-hero-actions">
+//           <button
+//             className="responder-notification-button"
+//             onClick={() =>
+//               navigate("/notifications")
+//             }
+//           >
+//             Notifications
+//           </button>
+
+//           <button
+//             className="responder-refresh-button"
+//             disabled={refreshing}
+//             onClick={() =>
+//               updateDashboard(true)
+//             }
+//           >
+//             {refreshing
+//               ? "Refreshing..."
+//               : "Refresh Requests"}
+//           </button>
+//         </div>
+//       </section>
+
+//       {/* SUMMARY */}
+
+//       <section className="responder-summary-grid">
+//         <article>
+//           <span>Visible requests</span>
+//           <strong>{requests.length}</strong>
+//         </article>
+
+//         <article>
+//           <span>Available nearby</span>
+//           <strong>{pendingCount}</strong>
+//         </article>
+
+//         <article>
+//           <span>Accepted by you</span>
+//           <strong>{acceptedCount}</strong>
+//         </article>
+
+//         <article>
+//           <span>Awaiting verification</span>
+//           <strong>
+//             {verificationCount}
+//           </strong>
+//         </article>
+//       </section>
+
+//       {/* LOCATION INFORMATION */}
+
+//       <section className="responder-location-strip">
+//         <div
+//           className={
+//             myLocation
+//               ? "responder-location-icon active"
+//               : "responder-location-icon"
+//           }
+//         >
+//           ⌖
+//         </div>
+
+//         <div>
+//           <strong>
+//             {myLocation
+//               ? "Location active"
+//               : "Detecting location"}
+//           </strong>
+
+//           <p>
+//             {myLocation
+//               ? "Showing requests within five kilometres of your current location."
+//               : "Allow location access to discover nearby requests."}
+//           </p>
+//         </div>
+
+//         <span>
+//           Auto-refresh: 10 seconds
+//         </span>
+//       </section>
+
+//       {/* REQUESTS SECTION */}
+
+//       <section className="responder-content">
+//         <div className="responder-content-heading">
+//           <div>
+//             <h2>Nearby active requests</h2>
+
+//             <p>
+//               Accepted requests disappear from
+//               other responders and remain visible
+//               only to you.
+//             </p>
+//           </div>
+
+//           <span className="responder-radius-badge">
+//             5 km radius
+//           </span>
+//         </div>
+
+//         {message && (
+//           <div className="responder-error-message">
+//             {message}
+//           </div>
+//         )}
+
+//         {loading ? (
+//           <div className="responder-loading-state">
+//             <div className="responder-loader" />
+
+//             <p>
+//               Detecting your location and loading
+//               nearby requests...
+//             </p>
+//           </div>
+//         ) : requests.length === 0 ? (
+//           <div className="responder-empty-state">
+//             <div className="responder-empty-icon">
+//               ✓
+//             </div>
+
+//             <h2>
+//               No active requests nearby
+//             </h2>
+
+//             <p>
+//               There are currently no requests
+//               within five kilometres that require
+//               your attention.
+//             </p>
+
+//             <button
+//               onClick={() =>
+//                 updateDashboard(true)
+//               }
+//             >
+//               Check Again
+//             </button>
+//           </div>
+//         ) : (
+//           <div className="responder-request-grid">
+//             {requests.map(request => {
+//               const requesterLatitude =
+//                 request?.location
+//                   ?.coordinates?.[1];
+
+//               const requesterLongitude =
+//                 request?.location
+//                   ?.coordinates?.[0];
+
+//               let distance = "Unavailable";
+
+//               if (
+//                 myLocation &&
+//                 Number.isFinite(
+//                   requesterLatitude
+//                 ) &&
+//                 Number.isFinite(
+//                   requesterLongitude
+//                 )
+//               ) {
+//                 distance =
+//                   `${calculateDistance(
+//                     myLocation.lat,
+//                     myLocation.lon,
+//                     requesterLatitude,
+//                     requesterLongitude
+//                   )} km`;
+//               }
+
+//               return (
+//                 <article
+//                   key={request._id}
+//                   className={
+//                     `responder-request-card responder-card-${request.status}`
+//                   }
+//                 >
+//                   <header className="responder-card-header">
+//                     <div>
+//                       <span className="responder-request-label">
+//                         Nearby Request
+//                       </span>
+
+//                       <h3>
+//                         {request.helpType ||
+//                           "General Assistance"}
+//                       </h3>
+//                     </div>
+
+//                     <span
+//                       className={
+//                         `responder-status responder-status-${request.status}`
+//                       }
+//                     >
+//                       {request.status === "pending"
+//                         ? "Available"
+//                         : request.status ===
+//                             "fulfilled"
+//                           ? "Accepted by you"
+//                           : "Waiting Verification"}
+//                     </span>
+//                   </header>
+
+//                   <p className="responder-request-description">
+//                     {request.description ||
+//                       "No description provided."}
+//                   </p>
+
+//                   <div className="responder-requester-card">
+//                     <div className="requester-avatar">
+//                       {request.requester?.name
+//                         ?.charAt(0)
+//                         ?.toUpperCase() || "U"}
+//                     </div>
+
+//                     <div>
+//                       <span>Requester</span>
+
+//                       <strong>
+//                         {request.requester?.name ||
+//                           "Unknown requester"}
+//                       </strong>
+
+//                       <small>
+//                         {request.requester?.phone ||
+//                           "Phone unavailable"}
+//                       </small>
+//                     </div>
+//                   </div>
+
+//                   <div className="responder-meta-grid">
+//                     <div>
+//                       <span>Distance</span>
+//                       <strong>{distance}</strong>
+//                     </div>
+
+//                     <div>
+//                       <span>Created</span>
+
+//                       <strong>
+//                         {formatCreatedTime(
+//                           request.createdAt
+//                         )}
+//                       </strong>
+//                     </div>
+//                   </div>
+
+//                   {request.status === "pending" && (
+//                     <div className="responder-request-notice pending">
+//                       <span>!</span>
+
+//                       <p>
+//                         This request is available.
+//                         Accept only if you can
+//                         provide help.
+//                       </p>
+//                     </div>
+//                   )}
+
+//                   {request.status === "fulfilled" && (
+//                     <div className="responder-request-notice accepted">
+//                       <span>✓</span>
+
+//                       <p>
+//                         You accepted this request.
+//                         Navigate to the requester
+//                         and provide assistance.
+//                       </p>
+//                     </div>
+//                   )}
+
+//                   {request.status ===
+//                     "waiting_verification" && (
+//                     <div className="responder-request-notice verifying">
+//                       <span>⌛</span>
+
+//                       <p>
+//                         You marked this request
+//                         completed. Waiting for
+//                         requester verification.
+//                       </p>
+//                     </div>
+//                   )}
+
+//                   <footer className="responder-card-actions">
+//                     {/* Pending:
+//                         exact location is hidden */}
+
+//                     {request.status === "pending" && (
+//                       <button
+//                         className="accept-help-button"
+//                         disabled={
+//                           acceptingId ===
+//                           request._id
+//                         }
+//                         onClick={() =>
+//                           acceptRequest(
+//                             request._id
+//                           )
+//                         }
+//                       >
+//                         {acceptingId ===
+//                         request._id
+//                           ? "Accepting..."
+//                           : "Accept Request"}
+//                       </button>
+//                     )}
+
+//                     {/* Fulfilled:
+//                         assigned responder can open map */}
+
+//                     {request.status ===
+//                       "fulfilled" && (
+//                       <>
+//                         <button
+//                           className="responder-map-button"
+//                           onClick={() =>
+//                             openGoogleMaps(request)
+//                           }
+//                         >
+//                           Open Google Maps
+//                         </button>
+
+//                         <button
+//                           className="complete-help-button"
+//                           disabled={
+//                             completingId ===
+//                             request._id
+//                           }
+//                           onClick={() =>
+//                             completeRequest(
+//                               request._id
+//                             )
+//                           }
+//                         >
+//                           {completingId ===
+//                           request._id
+//                             ? "Completing..."
+//                             : "Mark Completed"}
+//                         </button>
+//                       </>
+//                     )}
+
+//                     {request.status ===
+//                       "waiting_verification" && (
+//                       <button
+//                         className="responder-map-button full"
+//                         onClick={() =>
+//                           openGoogleMaps(request)
+//                         }
+//                       >
+//                         Open Requester Location
+//                       </button>
+//                     )}
+//                   </footer>
+//                 </article>
+//               );
+//             })}
+//           </div>
+//         )}
+//       </section>
+//     </main>
+//   );
+// };
+
+// export default ResponderDashboard;
+
+
+
+
+
+
+
+
+
+
 import React, {
   useCallback,
   useEffect,
@@ -873,24 +1853,34 @@ import "./ResponderDashboard.css";
 const ResponderDashboard = () => {
   const navigate = useNavigate();
 
-  const storedUser = localStorage.getItem("user");
+  // Keep the logged-in user stable during this component's lifetime.
+  // This fixes the useCallback dependency warning during Vercel build.
+  const [user] = useState(() => {
+    try {
+      const storedUser =
+        localStorage.getItem("user");
 
-  let user = null;
+      return storedUser
+        ? JSON.parse(storedUser)
+        : null;
+    } catch (error) {
+      console.error(
+        "Invalid user data in localStorage:",
+        error
+      );
 
-  try {
-    user = storedUser
-      ? JSON.parse(storedUser)
-      : null;
-  } catch (error) {
-    console.error(
-      "Invalid user data in localStorage:",
-      error
-    );
-  }
+      return null;
+    }
+  });
 
-  const [requests, setRequests] = useState([]);
-  const [message, setMessage] = useState("");
-  const [myLocation, setMyLocation] = useState(null);
+  const [requests, setRequests] =
+    useState([]);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [myLocation, setMyLocation] =
+    useState(null);
 
   const [acceptingId, setAcceptingId] =
     useState(null);
@@ -898,14 +1888,17 @@ const ResponderDashboard = () => {
   const [completingId, setCompletingId] =
     useState(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
+
   const [refreshing, setRefreshing] =
     useState(false);
 
   const updatingDashboard = useRef(false);
 
   // ==========================================
-  // CHECK IF REQUEST IS ASSIGNED TO USER
+  // CHECK WHETHER A REQUEST IS ASSIGNED
+  // TO THE CURRENT RESPONDER
   // ==========================================
 
   const isAssignedToCurrentResponder =
@@ -915,14 +1908,20 @@ const ResponderDashboard = () => {
           return false;
         }
 
-        const responder = request?.responder;
+        const responder =
+          request?.responder;
 
         if (!responder) {
           return false;
         }
 
-        // Responder returned as populated object
-        if (typeof responder === "object") {
+        const currentUserId =
+          user.id || user._id;
+
+        // Populated responder object
+        if (
+          typeof responder === "object"
+        ) {
           if (
             responder.phone &&
             String(responder.phone) ===
@@ -933,78 +1932,71 @@ const ResponderDashboard = () => {
 
           if (
             responder._id &&
-            user.id &&
-            String(responder._id) ===
-              String(user.id)
-          ) {
-            return true;
-          }
-
-          if (
-            responder._id &&
-            user._id &&
-            String(responder._id) ===
-              String(user._id)
-          ) {
-            return true;
-          }
-        }
-
-        // Responder returned as MongoDB ID
-        if (typeof responder === "string") {
-          const currentUserId =
-            user.id || user._id;
-
-          if (
             currentUserId &&
-            String(responder) ===
+            String(responder._id) ===
               String(currentUserId)
           ) {
             return true;
           }
         }
 
+        // Responder stored as MongoDB ID only
+        if (
+          typeof responder === "string" &&
+          currentUserId &&
+          String(responder) ===
+            String(currentUserId)
+        ) {
+          return true;
+        }
+
         return false;
       },
-      [
-        user?.id,
-        user?._id,
-        user?.phone
-      ]
+      [user]
     );
 
   // ==========================================
-  // FILTER REQUESTS
+  // FILTER REQUESTS FOR CURRENT RESPONDER
   // ==========================================
 
   const filterRequestsForCurrentResponder =
     useCallback(
       allRequests => {
-        if (!Array.isArray(allRequests)) {
+        if (
+          !Array.isArray(allRequests)
+        ) {
           return [];
         }
 
-        return allRequests.filter(request => {
-          // Pending requests are visible to all
-          if (request.status === "pending") {
-            return true;
-          }
+        return allRequests.filter(
+          request => {
+            // Pending requests are visible
+            // to all responders.
+            if (
+              request.status === "pending"
+            ) {
+              return true;
+            }
 
-          // Accepted requests are visible only
-          // to their assigned responder
-          if (
-            request.status === "fulfilled" ||
-            request.status ===
-              "waiting_verification"
-          ) {
-            return isAssignedToCurrentResponder(
-              request
-            );
-          }
+            // Fulfilled and waiting requests
+            // should only remain visible to
+            // their assigned responder.
+            if (
+              request.status ===
+                "fulfilled" ||
+              request.status ===
+                "waiting_verification"
+            ) {
+              return isAssignedToCurrentResponder(
+                request
+              );
+            }
 
-          // Hide completed and other statuses
-          return false;
-        });
+            // Completed and unknown statuses
+            // are hidden.
+            return false;
+          }
+        );
       },
       [isAssignedToCurrentResponder]
     );
@@ -1022,16 +2014,28 @@ const ResponderDashboard = () => {
     const earthRadius = 6371;
 
     const latitudeDifference =
-      (lat2 - lat1) * (Math.PI / 180);
+      (lat2 - lat1) *
+      (Math.PI / 180);
 
     const longitudeDifference =
-      (lon2 - lon1) * (Math.PI / 180);
+      (lon2 - lon1) *
+      (Math.PI / 180);
 
     const value =
-      Math.sin(latitudeDifference / 2) ** 2 +
-      Math.cos(lat1 * (Math.PI / 180)) *
-        Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(longitudeDifference / 2) ** 2;
+      Math.sin(
+        latitudeDifference / 2
+      ) **
+        2 +
+      Math.cos(
+        lat1 * (Math.PI / 180)
+      ) *
+        Math.cos(
+          lat2 * (Math.PI / 180)
+        ) *
+        Math.sin(
+          longitudeDifference / 2
+        ) **
+          2;
 
     const angle =
       2 *
@@ -1040,152 +2044,195 @@ const ResponderDashboard = () => {
         Math.sqrt(1 - value)
       );
 
-    return (earthRadius * angle).toFixed(2);
+    return (
+      earthRadius * angle
+    ).toFixed(2);
   };
 
   // ==========================================
   // FETCH NEARBY REQUESTS
   // ==========================================
 
-  const fetchNearbyRequests = useCallback(
-    async (latitude, longitude) => {
-      const response = await api.post(
-        "/help-requests/nearby",
-        {
-          phone: user.phone,
-          latitude,
-          longitude
+  const fetchNearbyRequests =
+    useCallback(
+      async (
+        latitude,
+        longitude
+      ) => {
+        if (!user?.phone) {
+          return;
         }
-      );
 
-      const receivedRequests =
-        response.data?.requests || [];
+        const response =
+          await api.post(
+            "/help-requests/nearby",
+            {
+              phone: user.phone,
+              latitude,
+              longitude
+            }
+          );
 
-      const filteredRequests =
-        filterRequestsForCurrentResponder(
-          receivedRequests
+        const receivedRequests =
+          response.data?.requests ||
+          [];
+
+        const filteredRequests =
+          filterRequestsForCurrentResponder(
+            receivedRequests
+          );
+
+        setRequests(
+          filteredRequests
         );
-
-      setRequests(filteredRequests);
-    },
-    [
-      user?.phone,
-      filterRequestsForCurrentResponder
-    ]
-  );
+      },
+      [
+        user,
+        filterRequestsForCurrentResponder
+      ]
+    );
 
   // ==========================================
   // UPDATE LOCATION AND DASHBOARD
   // ==========================================
 
-  const updateDashboard = useCallback(
-    (manualRefresh = false) => {
-      if (
-        !user?.phone ||
-        updatingDashboard.current
-      ) {
-        return;
-      }
+  const updateDashboard =
+    useCallback(
+      (
+        manualRefresh = false
+      ) => {
+        if (
+          !user?.phone ||
+          updatingDashboard.current
+        ) {
+          return;
+        }
 
-      if (!navigator.geolocation) {
-        setMessage(
-          "Geolocation is not supported by your browser."
-        );
-
-        setLoading(false);
-        setRefreshing(false);
-        return;
-      }
-
-      updatingDashboard.current = true;
-
-      if (manualRefresh) {
-        setRefreshing(true);
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        async position => {
-          try {
-            const latitude =
-              position.coords.latitude;
-
-            const longitude =
-              position.coords.longitude;
-
-            setMyLocation({
-              lat: latitude,
-              lon: longitude
-            });
-
-            await api.post(
-              "/users/update-location",
-              {
-                phone: user.phone,
-                latitude,
-                longitude
-              }
-            );
-
-            await fetchNearbyRequests(
-              latitude,
-              longitude
-            );
-
-            setMessage("");
-          } catch (error) {
-            console.error(
-              "Dashboard update error:",
-              error.response?.data ||
-                error.message
-            );
-
-            setMessage(
-              error.response?.data?.message ||
-                "Failed to load nearby requests."
-            );
-          } finally {
-            updatingDashboard.current = false;
-            setLoading(false);
-            setRefreshing(false);
-          }
-        },
-
-        locationError => {
-          console.error(
-            "Location access error:",
-            locationError
+        if (
+          !navigator.geolocation
+        ) {
+          setMessage(
+            "Geolocation is not supported by your browser."
           );
 
-          if (
-            locationError.code ===
-            locationError.PERMISSION_DENIED
-          ) {
-            setMessage(
-              "Location permission was denied. Allow location access to find nearby requests."
-            );
-          } else {
-            setMessage(
-              "Unable to detect your current location."
-            );
-          }
-
-          updatingDashboard.current = false;
           setLoading(false);
           setRefreshing(false);
-        },
-
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 5000
+          return;
         }
-      );
-    },
-    [
-      user?.phone,
-      fetchNearbyRequests
-    ]
-  );
+
+        updatingDashboard.current =
+          true;
+
+        if (manualRefresh) {
+          setRefreshing(true);
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async position => {
+            try {
+              const latitude =
+                position.coords
+                  .latitude;
+
+              const longitude =
+                position.coords
+                  .longitude;
+
+              setMyLocation({
+                lat: latitude,
+                lon: longitude
+              });
+
+              await api.post(
+                "/users/update-location",
+                {
+                  phone:
+                    user.phone,
+                  latitude,
+                  longitude
+                }
+              );
+
+              await fetchNearbyRequests(
+                latitude,
+                longitude
+              );
+
+              setMessage("");
+            } catch (error) {
+              console.error(
+                "Dashboard update error:",
+                error.response
+                  ?.data ||
+                  error.message
+              );
+
+              setMessage(
+                error.response?.data
+                  ?.message ||
+                  "Failed to load nearby requests."
+              );
+            } finally {
+              updatingDashboard.current =
+                false;
+
+              setLoading(false);
+              setRefreshing(false);
+            }
+          },
+
+          locationError => {
+            console.error(
+              "Location access error:",
+              locationError
+            );
+
+            if (
+              locationError.code ===
+              locationError.PERMISSION_DENIED
+            ) {
+              setMessage(
+                "Location permission was denied. Allow location access to find nearby requests."
+              );
+            } else if (
+              locationError.code ===
+              locationError.POSITION_UNAVAILABLE
+            ) {
+              setMessage(
+                "Your current location is unavailable."
+              );
+            } else if (
+              locationError.code ===
+              locationError.TIMEOUT
+            ) {
+              setMessage(
+                "Location detection timed out. Please try again."
+              );
+            } else {
+              setMessage(
+                "Unable to detect your current location."
+              );
+            }
+
+            updatingDashboard.current =
+              false;
+
+            setLoading(false);
+            setRefreshing(false);
+          },
+
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 5000
+          }
+        );
+      },
+      [
+        user,
+        fetchNearbyRequests
+      ]
+    );
 
   // ==========================================
   // AUTO REFRESH
@@ -1194,208 +2241,266 @@ const ResponderDashboard = () => {
   useEffect(() => {
     if (!user?.phone) {
       setLoading(false);
-      return;
+      return undefined;
     }
 
     updateDashboard();
 
-    const intervalId = setInterval(
-      updateDashboard,
-      10000
-    );
+    const intervalId =
+      setInterval(
+        updateDashboard,
+        10000
+      );
 
     return () => {
       clearInterval(intervalId);
     };
-  }, [user?.phone, updateDashboard]);
+  }, [user, updateDashboard]);
 
   // ==========================================
   // ACCEPT REQUEST
   // ==========================================
 
-  const acceptRequest = async requestId => {
-    if (!user?.phone || acceptingId) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "Accept this help request?\n\nOnly accept if you are ready to assist."
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setAcceptingId(requestId);
-
-      const response = await api.post(
-        "/help-requests/accept",
-        {
-          requestId,
-          responderPhone: user.phone
-        }
-      );
-
-      // Immediately update UI after acceptance
-      setRequests(previousRequests =>
-        previousRequests.map(request =>
-          request._id === requestId
-            ? {
-                ...request,
-                status: "fulfilled",
-                responder: {
-                  _id: user.id || user._id,
-                  name: user.name,
-                  phone: user.phone
-                }
-              }
-            : request
-        )
-      );
-
-      alert(
-        "Request accepted. Help the requester and mark it completed afterward."
-      );
-
-      // Exact requester location opens only
-      // after successful acceptance
-      const coordinates =
-        response.data?.requesterLocation
-          ?.coordinates;
-
+  const acceptRequest =
+    async requestId => {
       if (
-        Array.isArray(coordinates) &&
-        coordinates.length >= 2
+        !user?.phone ||
+        acceptingId
       ) {
-        const longitude = coordinates[0];
-        const latitude = coordinates[1];
-
-        window.open(
-          `https://www.google.com/maps?q=${latitude},${longitude}`,
-          "_blank",
-          "noopener,noreferrer"
-        );
+        return;
       }
-    } catch (error) {
-      console.error(
-        "Accept request error:",
-        error.response?.data ||
-          error.message
-      );
 
-      alert(
-        error.response?.data?.message ||
-          "Unable to accept this request."
-      );
+      const confirmed =
+        window.confirm(
+          "Accept this help request?\n\nOnly accept if you are ready to assist."
+        );
 
-      // Refresh because another responder
-      // may already have accepted it
-      updateDashboard();
-    } finally {
-      setAcceptingId(null);
-    }
-  };
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setAcceptingId(
+          requestId
+        );
+
+        const response =
+          await api.post(
+            "/help-requests/accept",
+            {
+              requestId,
+              responderPhone:
+                user.phone
+            }
+          );
+
+        // Update the request immediately
+        // so the Mark Completed button appears.
+        setRequests(
+          previousRequests =>
+            previousRequests.map(
+              request =>
+                request._id ===
+                requestId
+                  ? {
+                      ...request,
+                      status:
+                        "fulfilled",
+                      responder: {
+                        _id:
+                          user.id ||
+                          user._id,
+                        name:
+                          user.name,
+                        phone:
+                          user.phone
+                      }
+                    }
+                  : request
+            )
+        );
+
+        alert(
+          "Request accepted. Help the requester and mark it completed afterward."
+        );
+
+        const coordinates =
+          response.data
+            ?.requesterLocation
+            ?.coordinates;
+
+        if (
+          Array.isArray(
+            coordinates
+          ) &&
+          coordinates.length >= 2
+        ) {
+          const longitude =
+            coordinates[0];
+
+          const latitude =
+            coordinates[1];
+
+          window.open(
+            `https://www.google.com/maps?q=${latitude},${longitude}`,
+            "_blank",
+            "noopener,noreferrer"
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Accept request error:",
+          error.response?.data ||
+            error.message
+        );
+
+        alert(
+          error.response?.data
+            ?.message ||
+            "Unable to accept this request."
+        );
+
+        // Another responder may have
+        // already accepted it.
+        updateDashboard();
+      } finally {
+        setAcceptingId(null);
+      }
+    };
 
   // ==========================================
   // COMPLETE REQUEST
   // ==========================================
 
-  const completeRequest = async requestId => {
-    if (!user?.phone || completingId) {
-      return;
-    }
+  const completeRequest =
+    async requestId => {
+      if (
+        !user?.phone ||
+        completingId
+      ) {
+        return;
+      }
 
-    const confirmed = window.confirm(
-      "Mark this help request as completed?\n\nThe requester will need to verify it."
-    );
+      const confirmed =
+        window.confirm(
+          "Mark this help request as completed?\n\nThe requester will need to verify it."
+        );
 
-    if (!confirmed) {
-      return;
-    }
+      if (!confirmed) {
+        return;
+      }
 
-    try {
-      setCompletingId(requestId);
+      try {
+        setCompletingId(
+          requestId
+        );
 
-      await api.post(
-        "/help-requests/complete",
-        {
-          requestId,
-          responderPhone: user.phone
-        }
-      );
+        await api.post(
+          "/help-requests/complete",
+          {
+            requestId,
+            responderPhone:
+              user.phone
+          }
+        );
 
-      setRequests(previousRequests =>
-        previousRequests.map(request =>
-          request._id === requestId
-            ? {
-                ...request,
-                status:
-                  "waiting_verification"
-              }
-            : request
-        )
-      );
+        // Do not remove the request.
+        // Keep it visible until the
+        // requester verifies completion.
+        setRequests(
+          previousRequests =>
+            previousRequests.map(
+              request =>
+                request._id ===
+                requestId
+                  ? {
+                      ...request,
+                      status:
+                        "waiting_verification"
+                    }
+                  : request
+            )
+        );
 
-      alert(
-        "Help marked completed. Waiting for requester verification."
-      );
-    } catch (error) {
-      console.error(
-        "Complete request error:",
-        error.response?.data ||
-          error.message
-      );
+        alert(
+          "Help marked completed. Waiting for requester verification."
+        );
+      } catch (error) {
+        console.error(
+          "Complete request error:",
+          error.response?.data ||
+            error.message
+        );
 
-      alert(
-        error.response?.data?.message ||
-          "Failed to complete the request."
-      );
-    } finally {
-      setCompletingId(null);
-    }
-  };
+        alert(
+          error.response?.data
+            ?.message ||
+            "Failed to complete the request."
+        );
+      } finally {
+        setCompletingId(null);
+      }
+    };
 
   // ==========================================
   // OPEN REQUESTER LOCATION
   // ==========================================
 
-  const openGoogleMaps = request => {
-    const coordinates =
-      request?.location?.coordinates;
+  const openGoogleMaps =
+    request => {
+      const coordinates =
+        request?.location
+          ?.coordinates;
 
-    if (
-      !Array.isArray(coordinates) ||
-      coordinates.length < 2
-    ) {
-      alert(
-        "Requester location is unavailable."
+      if (
+        !Array.isArray(
+          coordinates
+        ) ||
+        coordinates.length < 2
+      ) {
+        alert(
+          "Requester location is unavailable."
+        );
+
+        return;
+      }
+
+      const longitude =
+        coordinates[0];
+
+      const latitude =
+        coordinates[1];
+
+      window.open(
+        `https://www.google.com/maps?q=${latitude},${longitude}`,
+        "_blank",
+        "noopener,noreferrer"
       );
-
-      return;
-    }
-
-    const longitude = coordinates[0];
-    const latitude = coordinates[1];
-
-    window.open(
-      `https://www.google.com/maps?q=${latitude},${longitude}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
-  };
+    };
 
   // ==========================================
   // FORMAT CREATED TIME
   // ==========================================
 
-  const formatCreatedTime = value => {
-    if (!value) {
-      return "Time unavailable";
-    }
+  const formatCreatedTime =
+    value => {
+      if (!value) {
+        return "Time unavailable";
+      }
 
-    return new Date(value).toLocaleString();
-  };
+      const date =
+        new Date(value);
+
+      if (
+        Number.isNaN(
+          date.getTime()
+        )
+      ) {
+        return "Time unavailable";
+      }
+
+      return date.toLocaleString();
+    };
 
   // ==========================================
   // LOGIN CHECK
@@ -1407,10 +2512,13 @@ const ResponderDashboard = () => {
         <div>
           <span>!</span>
 
-          <h2>Please login again</h2>
+          <h2>
+            Please login again
+          </h2>
 
           <p>
-            Your account information is missing.
+            Your account information
+            is missing.
           </p>
 
           <button
@@ -1425,13 +2533,19 @@ const ResponderDashboard = () => {
     );
   }
 
-  const pendingCount = requests.filter(
-    request => request.status === "pending"
-  ).length;
+  const pendingCount =
+    requests.filter(
+      request =>
+        request.status ===
+        "pending"
+    ).length;
 
-  const acceptedCount = requests.filter(
-    request => request.status === "fulfilled"
-  ).length;
+  const acceptedCount =
+    requests.filter(
+      request =>
+        request.status ===
+        "fulfilled"
+    ).length;
 
   const verificationCount =
     requests.filter(
@@ -1451,13 +2565,16 @@ const ResponderDashboard = () => {
           </span>
 
           <h1>
-            Ready to help, {user.name}?
+            Ready to help,{" "}
+            {user.name}?
           </h1>
 
           <p>
-            Discover active requests near your
-            current location and support community
-            members who need assistance.
+            Discover active requests
+            near your current location
+            and support community
+            members who need
+            assistance.
           </p>
         </div>
 
@@ -1465,7 +2582,9 @@ const ResponderDashboard = () => {
           <button
             className="responder-notification-button"
             onClick={() =>
-              navigate("/notifications")
+              navigate(
+                "/notifications"
+              )
             }
           >
             Notifications
@@ -1489,22 +2608,40 @@ const ResponderDashboard = () => {
 
       <section className="responder-summary-grid">
         <article>
-          <span>Visible requests</span>
-          <strong>{requests.length}</strong>
+          <span>
+            Visible requests
+          </span>
+
+          <strong>
+            {requests.length}
+          </strong>
         </article>
 
         <article>
-          <span>Available nearby</span>
-          <strong>{pendingCount}</strong>
+          <span>
+            Available nearby
+          </span>
+
+          <strong>
+            {pendingCount}
+          </strong>
         </article>
 
         <article>
-          <span>Accepted by you</span>
-          <strong>{acceptedCount}</strong>
+          <span>
+            Accepted by you
+          </span>
+
+          <strong>
+            {acceptedCount}
+          </strong>
         </article>
 
         <article>
-          <span>Awaiting verification</span>
+          <span>
+            Awaiting verification
+          </span>
+
           <strong>
             {verificationCount}
           </strong>
@@ -1539,7 +2676,8 @@ const ResponderDashboard = () => {
         </div>
 
         <span>
-          Auto-refresh: 10 seconds
+          Auto-refresh: 10
+          seconds
         </span>
       </section>
 
@@ -1548,12 +2686,15 @@ const ResponderDashboard = () => {
       <section className="responder-content">
         <div className="responder-content-heading">
           <div>
-            <h2>Nearby active requests</h2>
+            <h2>
+              Nearby active requests
+            </h2>
 
             <p>
-              Accepted requests disappear from
-              other responders and remain visible
-              only to you.
+              Accepted requests
+              disappear from other
+              responders and remain
+              visible only to you.
             </p>
           </div>
 
@@ -1573,23 +2714,27 @@ const ResponderDashboard = () => {
             <div className="responder-loader" />
 
             <p>
-              Detecting your location and loading
-              nearby requests...
+              Detecting your location
+              and loading nearby
+              requests...
             </p>
           </div>
-        ) : requests.length === 0 ? (
+        ) : requests.length ===
+          0 ? (
           <div className="responder-empty-state">
             <div className="responder-empty-icon">
               ✓
             </div>
 
             <h2>
-              No active requests nearby
+              No active requests
+              nearby
             </h2>
 
             <p>
-              There are currently no requests
-              within five kilometres that require
+              There are currently no
+              requests within five
+              kilometres that require
               your attention.
             </p>
 
@@ -1603,223 +2748,258 @@ const ResponderDashboard = () => {
           </div>
         ) : (
           <div className="responder-request-grid">
-            {requests.map(request => {
-              const requesterLatitude =
-                request?.location
-                  ?.coordinates?.[1];
+            {requests.map(
+              request => {
+                const requesterLatitude =
+                  request
+                    ?.location
+                    ?.coordinates?.[1];
 
-              const requesterLongitude =
-                request?.location
-                  ?.coordinates?.[0];
+                const requesterLongitude =
+                  request
+                    ?.location
+                    ?.coordinates?.[0];
 
-              let distance = "Unavailable";
+                let distance =
+                  "Unavailable";
 
-              if (
-                myLocation &&
-                Number.isFinite(
-                  requesterLatitude
-                ) &&
-                Number.isFinite(
-                  requesterLongitude
-                )
-              ) {
-                distance =
-                  `${calculateDistance(
+                if (
+                  myLocation &&
+                  Number.isFinite(
+                    requesterLatitude
+                  ) &&
+                  Number.isFinite(
+                    requesterLongitude
+                  )
+                ) {
+                  distance = `${calculateDistance(
                     myLocation.lat,
                     myLocation.lon,
                     requesterLatitude,
                     requesterLongitude
                   )} km`;
-              }
+                }
 
-              return (
-                <article
-                  key={request._id}
-                  className={
-                    `responder-request-card responder-card-${request.status}`
-                  }
-                >
-                  <header className="responder-card-header">
-                    <div>
-                      <span className="responder-request-label">
-                        Nearby Request
-                      </span>
+                return (
+                  <article
+                    key={
+                      request._id
+                    }
+                    className={`responder-request-card responder-card-${request.status}`}
+                  >
+                    <header className="responder-card-header">
+                      <div>
+                        <span className="responder-request-label">
+                          Nearby Request
+                        </span>
 
-                      <h3>
-                        {request.helpType ||
-                          "General Assistance"}
-                      </h3>
-                    </div>
+                        <h3>
+                          {request.helpType ||
+                            "General Assistance"}
+                        </h3>
+                      </div>
 
-                    <span
-                      className={
-                        `responder-status responder-status-${request.status}`
-                      }
-                    >
-                      {request.status === "pending"
-                        ? "Available"
-                        : request.status ===
-                            "fulfilled"
-                          ? "Accepted by you"
-                          : "Waiting Verification"}
-                    </span>
-                  </header>
-
-                  <p className="responder-request-description">
-                    {request.description ||
-                      "No description provided."}
-                  </p>
-
-                  <div className="responder-requester-card">
-                    <div className="requester-avatar">
-                      {request.requester?.name
-                        ?.charAt(0)
-                        ?.toUpperCase() || "U"}
-                    </div>
-
-                    <div>
-                      <span>Requester</span>
-
-                      <strong>
-                        {request.requester?.name ||
-                          "Unknown requester"}
-                      </strong>
-
-                      <small>
-                        {request.requester?.phone ||
-                          "Phone unavailable"}
-                      </small>
-                    </div>
-                  </div>
-
-                  <div className="responder-meta-grid">
-                    <div>
-                      <span>Distance</span>
-                      <strong>{distance}</strong>
-                    </div>
-
-                    <div>
-                      <span>Created</span>
-
-                      <strong>
-                        {formatCreatedTime(
-                          request.createdAt
-                        )}
-                      </strong>
-                    </div>
-                  </div>
-
-                  {request.status === "pending" && (
-                    <div className="responder-request-notice pending">
-                      <span>!</span>
-
-                      <p>
-                        This request is available.
-                        Accept only if you can
-                        provide help.
-                      </p>
-                    </div>
-                  )}
-
-                  {request.status === "fulfilled" && (
-                    <div className="responder-request-notice accepted">
-                      <span>✓</span>
-
-                      <p>
-                        You accepted this request.
-                        Navigate to the requester
-                        and provide assistance.
-                      </p>
-                    </div>
-                  )}
-
-                  {request.status ===
-                    "waiting_verification" && (
-                    <div className="responder-request-notice verifying">
-                      <span>⌛</span>
-
-                      <p>
-                        You marked this request
-                        completed. Waiting for
-                        requester verification.
-                      </p>
-                    </div>
-                  )}
-
-                  <footer className="responder-card-actions">
-                    {/* Pending:
-                        exact location is hidden */}
-
-                    {request.status === "pending" && (
-                      <button
-                        className="accept-help-button"
-                        disabled={
-                          acceptingId ===
-                          request._id
-                        }
-                        onClick={() =>
-                          acceptRequest(
-                            request._id
-                          )
-                        }
+                      <span
+                        className={`responder-status responder-status-${request.status}`}
                       >
-                        {acceptingId ===
-                        request._id
-                          ? "Accepting..."
-                          : "Accept Request"}
-                      </button>
-                    )}
+                        {request.status ===
+                        "pending"
+                          ? "Available"
+                          : request.status ===
+                              "fulfilled"
+                            ? "Accepted by you"
+                            : "Waiting Verification"}
+                      </span>
+                    </header>
 
-                    {/* Fulfilled:
-                        assigned responder can open map */}
+                    <p className="responder-request-description">
+                      {request.description ||
+                        "No description provided."}
+                    </p>
+
+                    <div className="responder-requester-card">
+                      <div className="requester-avatar">
+                        {request
+                          .requester
+                          ?.name
+                          ?.charAt(0)
+                          ?.toUpperCase() ||
+                          "U"}
+                      </div>
+
+                      <div>
+                        <span>
+                          Requester
+                        </span>
+
+                        <strong>
+                          {request
+                            .requester
+                            ?.name ||
+                            "Unknown requester"}
+                        </strong>
+
+                        <small>
+                          {request
+                            .requester
+                            ?.phone ||
+                            "Phone unavailable"}
+                        </small>
+                      </div>
+                    </div>
+
+                    <div className="responder-meta-grid">
+                      <div>
+                        <span>
+                          Distance
+                        </span>
+
+                        <strong>
+                          {distance}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Created
+                        </span>
+
+                        <strong>
+                          {formatCreatedTime(
+                            request.createdAt
+                          )}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {request.status ===
+                      "pending" && (
+                      <div className="responder-request-notice pending">
+                        <span>
+                          !
+                        </span>
+
+                        <p>
+                          This request
+                          is available.
+                          Accept only if
+                          you can provide
+                          help.
+                        </p>
+                      </div>
+                    )}
 
                     {request.status ===
                       "fulfilled" && (
-                      <>
-                        <button
-                          className="responder-map-button"
-                          onClick={() =>
-                            openGoogleMaps(request)
-                          }
-                        >
-                          Open Google Maps
-                        </button>
+                      <div className="responder-request-notice accepted">
+                        <span>
+                          ✓
+                        </span>
 
-                        <button
-                          className="complete-help-button"
-                          disabled={
-                            completingId ===
-                            request._id
-                          }
-                          onClick={() =>
-                            completeRequest(
-                              request._id
-                            )
-                          }
-                        >
-                          {completingId ===
-                          request._id
-                            ? "Completing..."
-                            : "Mark Completed"}
-                        </button>
-                      </>
+                        <p>
+                          You accepted
+                          this request.
+                          Navigate to
+                          the requester
+                          and provide
+                          assistance.
+                        </p>
+                      </div>
                     )}
 
                     {request.status ===
                       "waiting_verification" && (
-                      <button
-                        className="responder-map-button full"
-                        onClick={() =>
-                          openGoogleMaps(request)
-                        }
-                      >
-                        Open Requester Location
-                      </button>
+                      <div className="responder-request-notice verifying">
+                        <span>
+                          ⌛
+                        </span>
+
+                        <p>
+                          You marked
+                          this request
+                          completed.
+                          Waiting for
+                          requester
+                          verification.
+                        </p>
+                      </div>
                     )}
-                  </footer>
-                </article>
-              );
-            })}
+
+                    <footer className="responder-card-actions">
+                      {request.status ===
+                        "pending" && (
+                        <button
+                          className="accept-help-button"
+                          disabled={
+                            acceptingId ===
+                            request._id
+                          }
+                          onClick={() =>
+                            acceptRequest(
+                              request._id
+                            )
+                          }
+                        >
+                          {acceptingId ===
+                          request._id
+                            ? "Accepting..."
+                            : "Accept Request"}
+                        </button>
+                      )}
+
+                      {request.status ===
+                        "fulfilled" && (
+                        <>
+                          <button
+                            className="responder-map-button"
+                            onClick={() =>
+                              openGoogleMaps(
+                                request
+                              )
+                            }
+                          >
+                            Open Google Maps
+                          </button>
+
+                          <button
+                            className="complete-help-button"
+                            disabled={
+                              completingId ===
+                              request._id
+                            }
+                            onClick={() =>
+                              completeRequest(
+                                request._id
+                              )
+                            }
+                          >
+                            {completingId ===
+                            request._id
+                              ? "Completing..."
+                              : "Mark Completed"}
+                          </button>
+                        </>
+                      )}
+
+                      {request.status ===
+                        "waiting_verification" && (
+                        <button
+                          className="responder-map-button full"
+                          onClick={() =>
+                            openGoogleMaps(
+                              request
+                            )
+                          }
+                        >
+                          Open Requester
+                          Location
+                        </button>
+                      )}
+                    </footer>
+                  </article>
+                );
+              }
+            )}
           </div>
         )}
       </section>
